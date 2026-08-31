@@ -1,5 +1,7 @@
 # Order Service
 
+[![CI](https://github.com/hokagedno/orderservice/actions/workflows/ci.yml/badge.svg)](https://github.com/hokagedno/orderservice/actions/workflows/ci.yml)
+
 Два взаимодействующих сервиса на Go:
 
 * **orderapi** — REST API заказов на **Echo**, хранилище **PostgreSQL**
