@@ -52,6 +52,53 @@ func TestReserve_AllOrNothing(t *testing.T) {
 	}
 }
 
+// Reserve обязан отклонять неположительное количество: ноль или минус —
+// это ошибка вызывающего кода, а не «резерв на ноль штук».
+//
+// Важно проверить не только факт ошибки, но и то, что состояние склада
+// осталось нетронутым: валидация идёт первым проходом, до изменений.
+func TestReserve_RejectsNonPositiveQuantity(t *testing.T) {
+	cases := map[string]map[string]int32{
+		"ноль":          {"A": 0},
+		"отрицательное": {"A": -5},
+		"одна из позиций плохая": {"A": 1, "B": -1},
+	}
+
+	for name, items := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := newStore()
+
+			_, insufficient, err := s.Reserve("r1", "o1", items)
+			if err == nil {
+				t.Fatal("ожидали ошибку, получили nil")
+			}
+			// Это некорректный запрос, а не нехватка остатка,
+			// поэтому и ошибка должна быть другой.
+			if errors.Is(err, inventory.ErrInsufficientStock) {
+				t.Error("ожидали ошибку валидации, получили ErrInsufficientStock")
+			}
+			if len(insufficient) != 0 {
+				t.Errorf("список недостающих SKU должен быть пустым, получили %v", insufficient)
+			}
+
+			// Свежий склад с теми же начальными данными — эталон для сравнения.
+			pristine := newStore()
+			for _, sku := range []string{"A", "B"} {
+				want, _ := pristine.Get(sku)
+				got, _ := s.Get(sku)
+				if got != want {
+					t.Errorf("остаток %s изменился: было %+v, стало %+v", sku, want, got)
+				}
+			}
+
+			// Резерв не должен был появиться: снимать нечего.
+			if err := s.Release("r1"); !errors.Is(err, inventory.ErrNoReservation) {
+				t.Errorf("резерв не должен был создаться, Release вернул %v", err)
+			}
+		})
+	}
+}
+
 func TestRelease_ReturnsStock(t *testing.T) {
 	s := newStore()
 

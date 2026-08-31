@@ -90,7 +90,7 @@ func DefaultPolicy() DiscountPolicy {
 			NoDiscount{},
 			ThresholdDiscount{ThresholdCents: 500_000, Percent: 10}, // от 5000 ₽ — 10%
 			BulkItemDiscount{MinQuantity: 10, Percent: 15},          // от 10 шт. — 15%
-			CheapestItemFreeDiscount{MinDistinctItems: 3},            // от 3 позиций — дешёвая в подарок
+			CheapestItemFreeDiscount{MinDistinctItems: 3},           // от 3 позиций — дешёвая в подарок
 		},
 	}
 }
