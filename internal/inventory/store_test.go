@@ -59,8 +59,8 @@ func TestReserve_AllOrNothing(t *testing.T) {
 // осталось нетронутым: валидация идёт первым проходом, до изменений.
 func TestReserve_RejectsNonPositiveQuantity(t *testing.T) {
 	cases := map[string]map[string]int32{
-		"ноль":                   {"A": 0},
-		"отрицательное":          {"A": -5},
+		"ноль":          {"A": 0},
+		"отрицательное": {"A": -5},
 		"одна из позиций плохая": {"A": 1, "B": -1},
 	}
 
