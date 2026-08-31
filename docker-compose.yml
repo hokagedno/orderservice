@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+      POSTGRES_DB: orders
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orders -d orders"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  inventory:
+    build:
+      context: .
+      args:
+        SERVICE: inventory
+    environment:
+      GRPC_ADDR: ":9090"
+    ports:
+      - "9090:9090"
+    # Healthcheck здесь не задан намеренно: gRPC нельзя опросить обычным
+    # HTTP-запросом, а grpc_health_probe в образ не кладём. Сам health-сервис
+    # gRPC в приложении зарегистрирован (см. internal/app/inventory.go),
+    # так что в Kubernetes проба настраивается штатным grpc-пробом.
+    restart: unless-stopped
+
+  orderapi:
+    build:
+      context: .
+      args:
+        SERVICE: orderapi
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory:
+        condition: service_started
+    environment:
+      HTTP_ADDR: ":8081"
+      POSTGRES_DSN: "postgres://orders:orders@postgres:5432/orders?sslmode=disable"
+      INVENTORY_ADDR: "inventory:9090"
+      OUTBOX_INTERVAL: "2s"
+      OUTBOX_WORKERS: "4"
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
