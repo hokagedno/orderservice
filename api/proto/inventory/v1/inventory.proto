@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+// go_package задаёт, куда protoc-gen-go положит сгенерированный код
+// и какое имя пакета у него будет.
+option go_package = "github.com/hokagedno/orderservice/internal/pb/inventory/v1;inventoryv1";
+
+// InventoryService — складской сервис.
+//
+// Почему gRPC, а не REST, для этого взаимодействия:
+//   * контракт описан в .proto и проверяется компилятором на обеих сторонах;
+//   * protobuf компактнее и быстрее JSON при парсинге;
+//   * HTTP/2 даёт мультиплексирование в одном TCP-соединении, поэтому
+//     нет накладных расходов на установку соединения под каждый вызов;
+//   * из коробки есть server-streaming, дедлайны и коды ошибок.
+service InventoryService {
+  // GetStock — остаток по одному товару (unary RPC).
+  rpc GetStock(GetStockRequest) returns (GetStockResponse);
+
+  // Reserve — атомарно резервирует позиции заказа.
+  // Либо резервируются все позиции, либо ни одна (см. OUT_OF_STOCK).
+  rpc Reserve(ReserveRequest) returns (ReserveResponse);
+
+  // Release — возвращает резерв на склад (компенсирующая операция,
+  // вызывается, если заказ не удалось сохранить).
+  rpc Release(ReleaseRequest) returns (ReleaseResponse);
+
+  // WatchStock — server-streaming: сервер шлёт обновления остатков,
+  // пока клиент не закроет поток или не истечёт дедлайн.
+  rpc WatchStock(WatchStockRequest) returns (stream StockUpdate);
+}
+
+message GetStockRequest {
+  string sku = 1;
+}
+
+message GetStockResponse {
+  string sku = 1;
+  int32 available = 2;
+  int32 reserved = 3;
+  int64 price_cents = 4;
+}
+
+message ReserveItem {
+  string sku = 1;
+  int32 quantity = 2;
+}
+
+message ReserveRequest {
+  string order_id = 1;
+  repeated ReserveItem items = 2;
+}
+
+message ReservedItem {
+  string sku = 1;
+  int32 quantity = 2;
+  // Цена, зафиксированная складом на момент резерва. Клиент не должен
+  // диктовать стоимость — иначе заказ можно оформить по произвольной цене.
+  int64 price_cents = 3;
+}
+
+message ReserveResponse {
+  string reservation_id = 1;
+  int64 total_cents = 2;
+  // Заполняется, если резерв не удался: по каким SKU не хватило остатка.
+  repeated string insufficient_skus = 3;
+  // Позиции с ценами, зафиксированными складом.
+  // Поле добавлено после первой версии контракта: новый номер тега (4)
+  // не ломает старых клиентов — они просто его игнорируют.
+  repeated ReservedItem items = 4;
+}
+
+message ReleaseRequest {
+  string reservation_id = 1;
+}
+
+message ReleaseResponse {
+  bool released = 1;
+}
+
+message WatchStockRequest {
+  repeated string skus = 1;
+}
+
+message StockUpdate {
+  string sku = 1;
+  int32 available = 2;
+  int64 updated_at_unix = 3;
+}
